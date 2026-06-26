@@ -1,0 +1,37 @@
+# Camera / Video Settings
+video:
+  source: "data/raw/traffic.mp4"
+  fps: 30
+  width: 1280
+  height: 720
+
+# Detection Settings
+detection:
+  model: "yolov8n.pt"
+  confidence: 0.4
+  vehicle_classes: [2, 3, 5, 7]  # car, motorcycle, bus, truck
+
+# Tracking Settings
+tracking:
+  max_disappeared: 30
+  max_distance: 80
+
+# Violation Settings
+violation:
+  stop_line_y: 300
+  signal_interval: 10      # seconds to toggle signal in simulation
+  speed_limit: 50          # km/h
+
+# Output Settings
+output:
+  screenshots_dir: "output/screenshots"
+  reports_dir: "output/reports"
+  save_violations: true
+
+# Dashboard Settings
+dashboard:
+  show_fps: true
+  show_vehicle_count: true
+  show_violation_count: true
+  show_signal_state: true
+  show_violation_log: true
