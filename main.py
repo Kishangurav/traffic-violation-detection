@@ -1,6 +1,7 @@
 import cv2
 import sys
 from src.detection.detector import VehicleDetector
+from src.detection.helmet_detector import HelmetDetector
 from src.tracking.tracker import VehicleTracker
 from src.violation.red_light import RedLightDetector
 from src.violation.speed_estimator import SpeedEstimator
@@ -25,6 +26,7 @@ def main():
         model_path=config.get("detection", "model"),
         confidence=config.get("detection", "confidence")
     )
+    helmet_detector = HelmetDetector()
     tracker = VehicleTracker(config.get("tracking", "max_disappeared"))
     red_light = RedLightDetector(stop_line_y=config.get("violation", "stop_line_y"))
     speed_estimator = SpeedEstimator(
@@ -34,6 +36,9 @@ def main():
     recorder = ViolationRecorder(output_dir="output")
     dashboard = Dashboard()
 
+    # Only check helmets on bikes and motorcycles
+    two_wheeler_classes = [3]  # motorcycle class in YOLO
+
     while True:
         ret, frame = cap.read()
 
@@ -41,22 +46,13 @@ def main():
             print("[INFO] Video stream ended")
             break
 
-        # Auto simulate signal
         red_light.simulate_signal(interval=config.get("violation", "signal_interval"))
 
-        # Detect
         results = detector.detect(frame)
-
-        # Track
         tracked_objects, trajectories = tracker.update(results)
-
-        # Annotate detections
         annotated_frame = detector.annotate(frame, results)
-
-        # Draw stop line
         annotated_frame = red_light.draw_stop_line(annotated_frame)
 
-        # Check violations
         for vehicle_id, box in tracked_objects.items():
             x1, y1, x2, y2 = box
 
@@ -69,32 +65,45 @@ def main():
             for i in range(1, len(points)):
                 cv2.line(annotated_frame, points[i-1], points[i], (255, 255, 0), 2)
 
-            # Estimate speed
-            speed = speed_estimator.update(vehicle_id, box)
+            # Helmet check for two wheelers
+            for result in results:
+                for det_box in result.boxes:
+                    cls = int(det_box.cls[0])
+                    if cls in two_wheeler_classes:
+                        helmet_worn, _ = helmet_detector.detect(
+                            annotated_frame, box, vehicle_id
+                        )
+                        annotated_frame = helmet_detector.annotate(
+                            annotated_frame, box, helmet_worn, vehicle_id
+                        )
+                        if helmet_detector.check_violation(vehicle_id, helmet_worn):
+                            print(f"[VIOLATION] Vehicle ID:{vehicle_id} — NO HELMET!")
+                            recorder.save(
+                                annotated_frame,
+                                vehicle_id,
+                                "no_helmet"
+                            )
+                            dashboard.add_violation(vehicle_id, "No Helmet")
 
+            # Speed check
+            speed = speed_estimator.update(vehicle_id, box)
             if speed is not None:
-                # Show speed on frame
                 speed_color = (0, 0, 255) if speed_estimator.is_speeding(speed) else (0, 255, 0)
                 cv2.putText(annotated_frame, f"{speed} km/h", (x1, y2 + 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, speed_color, 2)
-
-                # Save speeding violation
                 if speed_estimator.is_speeding(speed):
                     print(f"[SPEEDING] Vehicle ID:{vehicle_id} going {speed} km/h!")
                     recorder.save(annotated_frame, vehicle_id, "speeding", speed=speed)
                     dashboard.add_violation(vehicle_id, f"Speeding {speed}km/h")
 
-            # Check red light violation
+            # Red light check
             violation = red_light.check_violation(vehicle_id, box)
             if violation:
                 print(f"[VIOLATION] Vehicle ID:{vehicle_id} ran a red light!")
                 recorder.save(annotated_frame, vehicle_id, "red_light")
                 dashboard.add_violation(vehicle_id, "Red Light")
 
-        # Draw violation labels
         annotated_frame = red_light.draw_violations(annotated_frame)
-
-        # Draw dashboard
         annotated_frame = dashboard.draw(
             annotated_frame,
             vehicle_count=len(tracked_objects),

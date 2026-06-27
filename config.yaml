@@ -11,6 +11,11 @@ detection:
   confidence: 0.4
   vehicle_classes: [2, 3, 5, 7]  # car, motorcycle, bus, truck
 
+# Add this under detection section
+helmet:
+  model: "models/helmet.pt"
+  confidence: 0.5
+  check_classes: [3]  # motorcycle only
 # Tracking Settings
 tracking:
   max_disappeared: 30
