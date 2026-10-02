@@ -17,8 +17,8 @@ class RedLightDetector:
         x1, y1, x2, y2 = box
         return (int((x1 + x2) / 2), y2)
 
-    def crossing_condition(self, vehicle_id, box):
-        """Return True only when a tracked vehicle moves from before to after the line while red."""
+    def temporal_condition(self, vehicle_id, box):
+        """Return True while an unconfirmed vehicle is beyond the stop line during red."""
         _, current_y = self._get_bottom_center(box)
         previous_y = self.previous_y.get(vehicle_id)
         self.previous_y[vehicle_id] = current_y
@@ -28,8 +28,8 @@ class RedLightDetector:
 
         return (
             self.signal_state == "red"
-            and previous_y < self.stop_line_y
             and current_y >= self.stop_line_y
+            and vehicle_id not in self.crossed_ids
         )
 
     def record_violation(self, vehicle_id, box):
@@ -49,8 +49,7 @@ class RedLightDetector:
         return True
 
     def check_violation(self, vehicle_id, box):
-        """Backward-compatible direct check; use crossing_condition + temporal verification in the main pipeline."""
-        if self.crossing_condition(vehicle_id, box):
+        if self.temporal_condition(vehicle_id, box):
             return self.record_violation(vehicle_id, box)
         return False
 
@@ -59,8 +58,10 @@ class RedLightDetector:
         color = (0, 0, 255) if self.signal_state == "red" else (0, 255, 0)
         cv2.line(frame, (0, self.stop_line_y), (w, self.stop_line_y), color, 3)
         label = f"Signal: {self.signal_state.upper()}"
-        cv2.putText(frame, label, (10, self.stop_line_y - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+        cv2.putText(
+            frame, label, (10, self.stop_line_y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2
+        )
         return frame
 
     def draw_violations(self, frame):
