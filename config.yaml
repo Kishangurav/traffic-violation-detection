@@ -11,11 +11,11 @@ detection:
   confidence: 0.4
   vehicle_classes: [2, 3, 5, 7]  # car, motorcycle, bus, truck
 
-# Add this under detection section
 helmet:
   model: "models/helmet.pt"
   confidence: 0.5
   check_classes: [3]  # motorcycle only
+
 # Tracking Settings
 tracking:
   max_disappeared: 30
@@ -24,8 +24,15 @@ tracking:
 # Violation Settings
 violation:
   stop_line_y: 300
-  signal_interval: 10      # seconds to toggle signal in simulation
-  speed_limit: 50          # km/h
+  signal_interval: 10
+  speed_limit: 50
+
+# Temporal verification
+# A condition must remain true for this many processed frames
+# before the system records a red-light violation.
+verification:
+  min_frames: 3
+  cooldown_frames: 30
 
 # Output Settings
 output:
