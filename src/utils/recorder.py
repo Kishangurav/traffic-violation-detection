@@ -5,17 +5,22 @@ import time
 
 
 class ViolationRecorder:
-    def __init__(self, output_dir="output"):
+    def __init__(self, output_dir="output", save_screenshots=False):
         self.output_dir = output_dir
+        self.save_screenshots = save_screenshots
+
         self.screenshots_dir = os.path.join(output_dir, "screenshots")
         self.reports_dir = os.path.join(output_dir, "reports")
 
-        os.makedirs(self.screenshots_dir, exist_ok=True)
         os.makedirs(self.reports_dir, exist_ok=True)
+
+        if self.save_screenshots:
+            os.makedirs(self.screenshots_dir, exist_ok=True)
 
         # Prevent duplicate records for the same vehicle + violation type,
         # while still allowing different violation types for one vehicle.
         self.recorded_events = set()
+
         print("[INFO] Violation Recorder Ready")
 
     def save(
@@ -29,30 +34,49 @@ class ViolationRecorder:
         confidence=None,
     ):
         event_key = (vehicle_id, violation_type)
+
         if event_key in self.recorded_events:
             return None
+
         self.recorded_events.add(event_key)
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"violation_{violation_type}_ID{vehicle_id}_{timestamp}"
 
-        screenshot_path = os.path.join(self.screenshots_dir, f"{filename}.jpg")
-        cv2.imwrite(screenshot_path, frame)
+        filename = (
+            f"violation_{violation_type}_ID{vehicle_id}_{timestamp}"
+        )
 
+        # Screenshot saving is optional.
+        screenshot_path = None
+
+        if self.save_screenshots:
+            screenshot_path = os.path.join(
+                self.screenshots_dir,
+                f"{filename}.jpg"
+            )
+
+            cv2.imwrite(screenshot_path, frame)
+
+        # Create violation report.
         report = {
             "vehicle_id": vehicle_id,
             "violation_type": violation_type,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "plate_number": plate_text if plate_text else "Unknown",
-            "speed": speed if speed is not None else "Unknown",
-            "verification": verification,
+            "speed": float(speed) if speed is not None else "Unknown",
             "confidence": confidence,
             "screenshot": screenshot_path,
         }
 
-        report_path = os.path.join(self.reports_dir, f"{filename}.json")
+        # Save JSON report.
+        report_path = os.path.join(
+            self.reports_dir,
+            f"{filename}.json"
+        )
+
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=4)
 
         print(f"[SAVED] Violation recorded — {report_path}")
+
         return report_path
