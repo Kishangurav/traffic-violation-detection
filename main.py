@@ -3,6 +3,7 @@ import sys
 from src.detection.detector import VehicleDetector
 from src.detection.helmet_detector import HelmetDetector
 from src.tracking.tracker import VehicleTracker
+from src.ptz.biomimetic_controller import BiomimeticOculomotorController
 from src.violation.red_light import RedLightDetector
 from src.violation.speed_estimator import SpeedEstimator
 from src.violation.temporal_verifier import TemporalVerifier
@@ -40,7 +41,7 @@ def main():
     )
     recorder = ViolationRecorder(output_dir="output")
     dashboard = Dashboard()
-
+    ptz_controller = BiomimeticOculomotorController()
     two_wheeler_classes = [3]
 
     while True:
@@ -59,6 +60,46 @@ def main():
 
         for vehicle_id, box in tracked_objects.items():
             x1, y1, x2, y2 = box
+            # Calculate the center of the tracked vehicle.
+            target_center = (
+                (x1 + x2) // 2,
+                 (y1 + y2) // 2
+                )
+
+            frame_size = (
+                frame.shape[1],
+                frame.shape[0]
+                )
+            # Calculate visual error and PTZ commands.
+            pan_error, tilt_error = ptz_controller.calculate_error(
+                target_center,
+                frame_size
+            )
+
+            pan_command, tilt_command = ptz_controller.generate_commands(
+                pan_error,
+                tilt_error
+            )
+            # Display biomimetic PTZ control information.
+            cv2.putText(
+                annotated_frame,
+                f"PTZ Pan: {pan_command:.2f}",
+                (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2
+            )
+
+            cv2.putText(
+                annotated_frame,
+                f"PTZ Tilt: {tilt_command:.2f}",
+                (20, 70),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2
+            )
 
             cv2.putText(
                 annotated_frame, f"ID:{vehicle_id}", (x1, y1 - 30),
