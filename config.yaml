@@ -23,7 +23,7 @@ tracking:
 
 # Violation Settings
 violation:
-  stop_line_y: 300
+  stop_line_y: 500
   signal_interval: 10      # seconds to toggle signal in simulation
   speed_limit: 50          # km/h
 
