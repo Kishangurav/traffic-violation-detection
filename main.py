@@ -1,4 +1,3 @@
-
 import cv2
 import sys
 
@@ -11,6 +10,7 @@ from src.violation.speed_estimator import SpeedEstimator
 from src.utils.recorder import ViolationRecorder
 from src.utils.dashboard import Dashboard
 from src.utils.config import Config
+from src.utils.violation_logger import ViolationLogger
 
 
 def main():
@@ -45,12 +45,14 @@ def main():
         )
 
         speed_estimator = SpeedEstimator(
-            fps=config.get("video", "fps"),
+            fps=cap.get(cv2.CAP_PROP_FPS) or config.get("video", "fps"),
             speed_limit=config.get("violation", "speed_limit")
         )
 
         recorder = ViolationRecorder(output_dir="output")
         dashboard = Dashboard()
+        logger = ViolationLogger(recorder, dashboard)
+        frame_idx = 0
 
         ptz_controller = BiomimeticOculomotorController(
             kp_pan=0.05,
@@ -70,6 +72,8 @@ def main():
             if not ret:
                 print("[INFO] Video stream ended")
                 break
+
+            frame_idx += 1
 
             # Reset controller values for this frame.
             pan_error = 0.0
@@ -177,8 +181,9 @@ def main():
 
                         matched_motorcycle = True
 
+                        # Use the clean frame for the model.
                         helmet_worn, _ = helmet_detector.detect(
-                            annotated_frame,
+                            frame,
                             box,
                             vehicle_id
                         )
@@ -194,20 +199,12 @@ def main():
                             vehicle_id,
                             helmet_worn
                         ):
-                            print(
-                                f"[VIOLATION] Vehicle ID:{vehicle_id} "
-                                "- NO HELMET!"
-                            )
-
-                            recorder.save(
+                            logger.log(
+                                vehicle_id,
+                                "no_helmet",
                                 annotated_frame,
-                                vehicle_id,
-                                "no_helmet"
-                            )
-
-                            dashboard.add_violation(
-                                vehicle_id,
-                                "No Helmet"
+                                "No Helmet",
+                                frame_idx
                             )
 
                         break
@@ -236,21 +233,13 @@ def main():
                     )
 
                     if speeding:
-                        print(
-                            f"[SPEEDING] Vehicle ID:{vehicle_id} "
-                            f"going {speed:.1f} km/h!"
-                        )
-
-                        recorder.save(
-                            annotated_frame,
+                        logger.log(
                             vehicle_id,
                             "speeding",
+                            annotated_frame,
+                            f"Speeding {speed:.1f} km/h",
+                            frame_idx,
                             speed=speed
-                        )
-
-                        dashboard.add_violation(
-                            vehicle_id,
-                            f"Speeding {speed:.1f} km/h"
                         )
 
                 # Red-light crossing verification.
@@ -260,20 +249,12 @@ def main():
                 )
 
                 if violation:
-                    print(
-                        f"[VIOLATION] Vehicle ID:{vehicle_id} "
-                        "ran a red light!"
-                    )
-
-                    recorder.save(
+                    logger.log(
+                        vehicle_id,
+                        "red_light",
                         annotated_frame,
-                        vehicle_id,
-                        "red_light"
-                    )
-
-                    dashboard.add_violation(
-                        vehicle_id,
-                        "Red Light"
+                        "Red Light",
+                        frame_idx
                     )
 
             annotated_frame = red_light.draw_violations(
@@ -284,7 +265,7 @@ def main():
             annotated_frame = dashboard.draw(
                 annotated_frame,
                 vehicle_count=len(tracked_objects),
-                violation_count=len(red_light.get_violations()),
+                violation_count=logger.count,
                 signal_state=red_light.signal_state
             )
 
