@@ -1,81 +1,117 @@
+import json
+import os
+from collections import defaultdict, deque
+
 import cv2
 import numpy as np
-import time
-from collections import defaultdict
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CALIB_FILE = os.path.join(ROOT, "calibration.json")
+
 
 class SpeedEstimator:
-    def __init__(self, fps=30, speed_limit=50):
-        self.fps = fps
+    def __init__(
+        self,
+        fps=30,
+        speed_limit=50,
+        calibration_file=CALIB_FILE,
+        margin_x=1.5,
+        margin_y=3.0,
+        window_seconds=0.8,
+        min_samples=8,
+        max_step_m=0.8,
+        max_speed=150,
+    ):
+        self.fps = fps if fps and fps > 0 else 30
         self.speed_limit = speed_limit
-        self.entry_time = {}
-        self.entry_position = {}
-        self.speed_records = defaultdict(list)
+        self.min_samples = min_samples
+        self.max_step_m = max_step_m
+        self.max_speed = max_speed
+        self.window_frames = max(min_samples + 2, int(self.fps * window_seconds))
 
-        # Calibration points - adjust these to match your video
-        self.pixel_points = np.float32([
-            [100, 400],
-            [540, 400],
-            [540, 280],
-            [100, 280]
-        ])
-        self.world_points = np.float32([
-            [0, 0],
-            [10, 0],
-            [10, 20],
-            [0, 20]
-        ])
+        self.history = defaultdict(lambda: deque(maxlen=self.window_frames))
+        self.recent = defaultdict(lambda: deque(maxlen=5))
+        self.H = None
+        self.bounds = None
 
-        self.H, _ = cv2.findHomography(self.pixel_points, self.world_points)
+        if os.path.exists(calibration_file):
+            with open(calibration_file, encoding="utf-8") as f:
+                data = json.load(f)
 
-    def _pixel_to_world(self, pixel_point):
-        pt = np.float32([[pixel_point]])
-        world = cv2.perspectiveTransform(pt, self.H)
-        return world[0][0]
+            self.H = cv2.getPerspectiveTransform(
+                np.float32(data["image_points"]),
+                np.float32(data["world_points"]),
+            )
 
-    def _get_center(self, box):
+            width = max(p[0] for p in data["world_points"])
+            length = max(p[1] for p in data["world_points"])
+            # Speed is only measured inside the calibrated patch plus a margin.
+            self.bounds = (-margin_x, width + margin_x, -margin_y, length + margin_y)
+
+            print(
+                f"[INFO] Speed calibration loaded (fps={self.fps:.1f}, "
+                f"zone={width:.1f}x{length:.1f} m + margin)"
+            )
+        else:
+            print(
+                "[WARNING] calibration.json not found - speed estimation is OFF. "
+                "Run: python scripts\\calibrate_speed.py"
+            )
+
+    def _to_world(self, x, y):
+        pt = np.float32([[[x, y]]])
+        wx, wy = cv2.perspectiveTransform(pt, self.H)[0][0]
+        return float(wx), float(wy)
+
+    def _in_zone(self, wx, wy):
+        x_min, x_max, y_min, y_max = self.bounds
+        return x_min <= wx <= x_max and y_min <= wy <= y_max
+
+    def _forget(self, vehicle_id):
+        self.history.pop(vehicle_id, None)
+        self.recent.pop(vehicle_id, None)
+
+    def update(self, vehicle_id, box, frame_idx):
+        if self.H is None:
+            return None
+
         x1, y1, x2, y2 = box
-        return (int((x1 + x2) / 2), int((y1 + y2) / 2))
+        # Bottom-center of the box = where the vehicle touches the road.
+        wx, wy = self._to_world((x1 + x2) / 2, y2)
 
-    def update(self, vehicle_id, box):
-        center = self._get_center(box)
-        current_time = time.time()
-
-        if vehicle_id not in self.entry_time:
-            self.entry_time[vehicle_id] = current_time
-            self.entry_position[vehicle_id] = center
+        if not self._in_zone(wx, wy):
+            self._forget(vehicle_id)
             return None
 
-        time_elapsed = current_time - self.entry_time[vehicle_id]
+        hist = self.history[vehicle_id]
 
-        if time_elapsed < 0.5:
+        if hist:
+            last_frame, last_x, last_y = hist[-1]
+            gap = frame_idx - last_frame
+            step = float(np.hypot(wx - last_x, wy - last_y))
+            # A jump this large between frames is a tracker ID switch, not motion.
+            if gap <= 0 or step > self.max_step_m * gap:
+                self._forget(vehicle_id)
+                hist = self.history[vehicle_id]
+
+        hist.append((frame_idx, wx, wy))
+
+        if len(hist) < self.min_samples:
             return None
 
-        # Convert to world coordinates
-        world_entry = self._pixel_to_world(self.entry_position[vehicle_id])
-        world_current = self._pixel_to_world(center)
+        f0, x0, y0 = hist[0]
+        dframes = frame_idx - f0
+        if dframes < self.min_samples:
+            return None
 
-        # Distance in meters
-        dx = world_current[0] - world_entry[0]
-        dy = world_current[1] - world_entry[1]
-        distance = np.sqrt(dx**2 + dy**2)
+        dist = float(np.hypot(wx - x0, wy - y0))
+        speed = dist / (dframes / self.fps) * 3.6
 
-        # Speed in km/h
-        speed = (distance / time_elapsed) * 3.6
+        if speed > self.max_speed:
+            return None
 
-        # Smooth over last 5 readings
-        self.speed_records[vehicle_id].append(speed)
-        if len(self.speed_records[vehicle_id]) > 5:
-            self.speed_records[vehicle_id].pop(0)
-
-        avg_speed = np.mean(self.speed_records[vehicle_id])
-
-        # Update for next calculation
-        self.entry_time[vehicle_id] = current_time
-        self.entry_position[vehicle_id] = center
-
-        return round(avg_speed, 1)
+        self.recent[vehicle_id].append(speed)
+        return round(float(np.median(self.recent[vehicle_id])), 1)
 
     def is_speeding(self, speed):
-        if speed is None:
-            return False
-        return speed > self.speed_limit
+        return speed is not None and speed > self.speed_limit

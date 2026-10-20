@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+
 
 class ViolationRecord(BaseModel):
     id: Optional[int] = None
@@ -9,8 +9,11 @@ class ViolationRecord(BaseModel):
     plate_number: Optional[str] = "Unknown"
     speed: Optional[float] = None
     timestamp: str
+    camera_id: Optional[str] = None
+    frame_number: Optional[int] = None
     screenshot_path: Optional[str] = None
-    confidence: Optional[float] = None
+    screenshot_url: Optional[str] = None
+
 
 class CameraConfig(BaseModel):
     camera_id: int
@@ -21,11 +24,10 @@ class CameraConfig(BaseModel):
     speed_limit: int
     status: str = "active"
 
+
 class DashboardStats(BaseModel):
-    total_vehicles: int
     total_violations: int
     red_light_violations: int
     speeding_violations: int
     helmet_violations: int
-    signal_state: str
-    fps: float
+    by_type: dict

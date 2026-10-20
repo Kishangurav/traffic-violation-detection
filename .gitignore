@@ -34,3 +34,5 @@ frontend/dist/
 Thumbs.db
 output/
 *.db
+
+.env

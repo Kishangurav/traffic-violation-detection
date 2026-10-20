@@ -1,4 +1,4 @@
-import cv2
+﻿import cv2
 import sys
 
 from src.detection.detector import VehicleDetector
@@ -213,7 +213,7 @@ def main():
                         break
 
                 # Speed checking.
-                speed = speed_estimator.update(vehicle_id, box)
+                speed = speed_estimator.update(vehicle_id, box, frame_idx)
 
                 if speed is not None:
                     speeding = speed_estimator.is_speeding(speed)
