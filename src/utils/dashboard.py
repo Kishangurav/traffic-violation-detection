@@ -44,9 +44,17 @@ class Dashboard:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
         # Signal state
-        signal_color = (0, 0, 255) if signal_state == "red" else (0, 255, 0)
-        cv2.putText(frame, f"Signal: {signal_state.upper()}", (10, 115),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, signal_color, 2)
+        signal_color = (0, 0, 255) if signal_state.lower() == "red" else (0, 255, 0)
+
+        cv2.putText(
+            frame,
+            f"Signal: {signal_state.upper()}",
+            (10, 115),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            signal_color,
+            2,
+        )
 
         # Signal circle indicator
         cv2.circle(frame, (250, 108), 15, signal_color, -1)
