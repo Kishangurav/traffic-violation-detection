@@ -36,3 +36,7 @@ output/
 *.db
 
 .env
+
+Helmet-detection-*/
+runs/
+.venv/
