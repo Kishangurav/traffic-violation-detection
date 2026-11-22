@@ -7,20 +7,24 @@ const COLORS = ["#E24B4A", "#F59E0B", "#3B82F6"]
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    fetchStats()
+  useEffect(() => {    fetchStats()
     const interval = setInterval(fetchStats, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  const fetchStats = async () => {
+    const fetchStats = async () => {
     try {
-      const res = await axios.get("/api/v1/stats")
+      const res = await axios.get("/api/v1/stats", {
+        timeout: 5000,
+      })
       setStats(res.data)
-      setLoading(false)
+      setError(null)
     } catch (err) {
       console.error("API error:", err)
+      setError("Cannot reach the API. Check that the backend is running.")
+    } finally {
       setLoading(false)
     }
   }
@@ -35,8 +39,12 @@ export default function Dashboard() {
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Live Dashboard</h2>
 
-      {loading ? (
+            {loading ? (
         <p className="text-gray-400">Loading stats...</p>
+      ) : error && !stats ? (
+        <p role="alert" className="text-red-400">
+          {error} Retrying automatically.
+        </p>
       ) : (
         <>
           {/* Stat Cards */}
@@ -88,11 +96,19 @@ export default function Dashboard() {
 
           </div>
 
-          {/* API Status */}
+                    {/* API Status */}
           <div className="mt-6 bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span className="text-sm text-gray-400">API Connected — Auto refreshing every 5 seconds</span>
+            <div className="flex items-center gap-2" role="status">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  error ? "bg-red-500" : "bg-green-500"
+                }`}
+              />
+              <span className="text-sm text-gray-400">
+                {error
+                  ? `${error} Showing last successfully loaded data.`
+                  : "API Connected — Auto refreshing every 5 seconds"}
+              </span>
             </div>
           </div>
         </>

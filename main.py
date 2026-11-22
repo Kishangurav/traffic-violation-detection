@@ -69,7 +69,10 @@ def main():
             confidence=config.get("detection", "confidence"),
         )
         helmet_detector = HelmetDetector()
-        tracker = VehicleTracker(config.get("tracking", "max_disappeared"))
+        tracker = VehicleTracker(
+            max_missed=config.get("tracking", "max_disappeared"),
+            max_distance=config.get("tracking", "max_distance"),
+        )
         red_light = RedLightDetector(
             stop_line_y=config.get("violation", "stop_line_y")
         )
@@ -212,3 +215,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

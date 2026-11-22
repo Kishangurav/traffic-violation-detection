@@ -151,13 +151,22 @@ def add_camera(camera: CameraConfig):
     return {"message": "Camera added", "camera": camera}
 
 
-@router.delete("/cameras/{camera_id}")
-def delete_camera(camera_id: int):
-    for i, cam in enumerate(cameras_db):
-        if cam["camera_id"] == camera_id:
-            cameras_db.pop(i)
-            return {"message": f"Camera {camera_id} deleted"}
-    raise HTTPException(status_code=404, detail="Camera not found")
+@router.delete("/violations/{violation_id}")
+def delete_violation(violation_id: int):
+    """Delete one violation using its unique database ID."""
+    with db.Session() as session:
+        row = session.get(Violation, violation_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Violation not found",
+            )
+
+        session.delete(row)
+        session.commit()
+
+    return {"message": f"Violation {violation_id} deleted"}
 
 
 # ----- Stats -----

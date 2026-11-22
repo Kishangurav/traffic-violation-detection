@@ -87,8 +87,8 @@ export default function Violations() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v, i) => (
-                <tr key={i} className="border-b border-gray-800 hover:bg-gray-800 transition">
+              {filtered.map((v) => (
+                <tr key={v.id} className="border-b border-gray-800 hover:bg-gray-800 transition">
                   <td className="px-4 py-3 font-mono text-yellow-400">#{v.vehicle_id}</td>
                   <td className="px-4 py-3">
                     <span className={`${badgeColor(v.violation_type)} text-white text-xs px-2 py-1 rounded-full`}>
@@ -100,7 +100,7 @@ export default function Violations() {
                   <td className="px-4 py-3 text-gray-400 text-xs">{v.timestamp}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => deleteViolation(v.vehicle_id)}
+                      onClick={() => deleteViolation(v.id)}
                       className="text-xs text-red-400 hover:text-red-300 transition"
                     >
                       Delete
