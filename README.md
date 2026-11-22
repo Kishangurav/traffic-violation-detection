@@ -1,228 +1,142 @@
 # Traffic Violation Detection System
 
-### AI-Powered Real-Time Traffic Enforcement for Bangalore
+A traffic-monitoring demo for Bangalore. Watch vehicles move through an annotated video in OpenCV, then open the React dashboard to review the events saved by the detector. The traffic signal is simulated, and speed estimates use measurements from the camera’s view of the road.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge\&logo=python)
+![Python](https://img.shields.io/badge/Python-blue?style=for-the-badge&logo=python&logoColor=white)
 ![YOLOv8](https://img.shields.io/badge/YOLOv8-Detection-red?style=for-the-badge)
-![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green?style=for-the-badge\&logo=fastapi)
-![React](https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge\&logo=react)
-![OpenCV](https://img.shields.io/badge/OpenCV-Computer_Vision-5C3EE8?style=for-the-badge\&logo=opencv)
-
----
-
-## Overview
-
-A full-stack deep learning and computer vision system designed to detect and monitor traffic violations in real time. The platform integrates object detection, multi-object tracking, violation analysis, and evidence collection with a FastAPI backend and React dashboard.
-
-The system is designed to support traffic monitoring and enforcement scenarios in Bangalore.
+![OpenCV](https://img.shields.io/badge/OpenCV-Vision-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-Dashboard-20232A?style=for-the-badge&logo=react)
 
 ## Features
 
-| Feature                                         | Status |
-| ----------------------------------------------- | ------ |
-| Vehicle Detection using YOLOv8                  | Live   |
-| Red Light Violation Detection                   | Live   |
-| Vehicle Speed Estimation                        | Live   |
-| Helmet Violation Detection                      | Live   |
-| Evidence Capture (Screenshots and JSON Reports) | Live   |
-| Real-Time React Dashboard                       | Live   |
-| FastAPI REST Backend                            | Live   |
-| Multi-Object Tracking                           | Live   |
+| Feature | How it works |
+| --- | --- |
+| Vehicle detection | YOLOv8 and OpenCV identify and draw boxes around cars, motorcycles, buses and trucks. |
+| Vehicle tracking | A custom tracker matches vehicles across frames using bounding-box overlap and the distance between box centers. Each track gets an ID and a trail. |
+| Red-light detection | Records a crossing when a tracked vehicle passes the stop line from the approach side while the simulated signal is red. |
+| Speed estimation | Maps vehicle positions to road coordinates using camera calibration. Flags vehicles whose estimated speed exceeds the configured limit, which defaults to 50 km/h. |
+| Helmet detection | With compatible weights at `models/helmet.pt`, the detector checks motorcycle riders and flags a track after repeated no-helmet detections. This feature is optional. |
+| Evidence capture | Saves an annotated screenshot, a JSON report and a SQLite record. Each vehicle track can generate one event of each type per detector run. |
+| Dashboard | Shows totals and charts, refreshes statistics every five seconds, and lets you browse violations and filter them by type. |
 
-## System Architecture
+## How the parts fit together
 
-```text
-Video Input
-     |
-     v
-YOLOv8 Object Detection
-     |
-     v
-Multi-Object Tracking
-     |
-     v
-Violation Detection Engine
-(Red Light / Speed / Helmet)
-     |
-     v
-Evidence Recording
-(Screenshots + JSON Reports)
-     |
-     v
-FastAPI Backend
-     |
-     v
-React Dashboard
-```
+The detector (`main.py`) reads the video and writes events to `output/violations.db`. FastAPI queries that database through SQLAlchemy and serves saved screenshots. The React frontend uses Axios to request the statistics and violation records, Recharts to draw the charts, and Tailwind CSS for styling.
 
-## Technology Stack
+Dashboard totals include events saved across runs. You can reopen the dashboard after the video ends and still review those events. If the API goes offline after a successful refresh, the updated dashboard keeps the last counts visible and shows a connection warning. For a live view of vehicles and their track IDs, use the detector’s OpenCV window.
 
-### Machine Learning and Computer Vision
+## Quick start in VS Code
 
-* **YOLOv8** — Object detection for identifying vehicles and traffic-related objects.
-* **OpenCV** — Video processing, frame analysis, and computer vision operations.
-* **EasyOCR** — License plate text recognition.
-* **ByteTrack** — Multi-object tracking across video frames.
+### 1. Open the project
 
-### Backend
-
-* **FastAPI** — REST API development.
-* **Uvicorn** — ASGI server for running the backend.
-* **PyYAML** — Configuration management.
-
-### Frontend
-
-* **React** — User interface development.
-* **Vite** — Frontend development and build tooling.
-* **Tailwind CSS** — UI styling.
-* **Recharts** — Data visualization.
-* **Axios** — HTTP communication with backend services.
-
-## Quick Start
-
-### 1. Clone the Repository
+If you already have the repository, open the folder containing `main.py` in VS Code. For a fresh copy, run:
 
 ```bash
 git clone https://github.com/Kishangurav/traffic-violation-detection.git
 cd traffic-violation-detection
 ```
 
-### 2. Set Up the Python Environment
+### 2. Install dependencies once
 
-```bash
-python -m venv venv
+The following commands use Windows PowerShell, 64-bit Python 3.11 and Node.js with npm. The frontend supports Node.js 20 from 20.19 onward, or Node.js 22.12 and newer. If you already have a working `venv`, skip the first command.
+
+```powershell
+py -3.11 -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt fastapi uvicorn "SQLAlchemy>=2,<3" "pydantic>=2,<3"
+npm --prefix frontend ci
 ```
 
-#### Windows
+On macOS or Linux, the repository’s requirements file includes Windows-specific packages. For the detector and dashboard, install the runtime dependencies in a virtual environment as follows. Use `./venv/bin/python` in place of `.\venv\Scripts\python.exe` in the launch commands.
 
 ```bash
-venv\Scripts\activate
+python3.11 -m venv venv
+./venv/bin/python -m pip install "ultralytics==8.4.10" opencv-python numpy PyYAML fastapi uvicorn "SQLAlchemy>=2,<3" "pydantic>=2,<3"
+npm --prefix frontend ci
 ```
 
-#### macOS / Linux
+### 3. Start the API and dashboard
 
-```bash
-source venv/bin/activate
+Open two VS Code terminals in the project folder.
+
+**Terminal 1 — FastAPI**
+
+```powershell
+.\venv\Scripts\python.exe -m uvicorn api.main:app --reload --port 8000
 ```
 
-Install the required dependencies:
+Wait for `Application startup complete`. You can check the [health endpoint](http://127.0.0.1:8000/api/v1/health) or open the [interactive API docs](http://127.0.0.1:8000/docs).
 
-```bash
-pip install -r requirements.txt
-```
+**Terminal 2 — React dashboard**
 
-### 3. Run the Detection Engine
-
-```bash
-python main.py
-```
-
-### 4. Start the FastAPI Backend
-
-```bash
-python -m uvicorn api.main:app --reload --port 8000
-```
-
-### 5. Start the Frontend
-
-Open a new terminal:
-
-```bash
+```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
-### 6. Access the Dashboard
+Open the **Local** URL printed by Vite, usually [http://localhost:5173](http://localhost:5173). A fresh database shows zero violations.
 
-```text
-http://localhost:5173
+### 4. Run the detector
+
+Open a third terminal in the folder containing `main.py`:
+
+```powershell
+.\venv\Scripts\python.exe main.py
 ```
 
-## Project Structure
+The default input is `data/raw/traffic.mp4`. The vehicle detector uses `yolov8n.pt`, so allow internet access on the first run if the weights need to download. Watch the annotated video and press **q** in the OpenCV window to stop. New events appear in the dashboard on its next refresh.
 
-```text
-traffic-violation-detection/
-|
-├── main.py                  # Application entry point
-├── config.yaml              # System configuration
-├── requirements.txt         # Python dependencies
-|
-├── api/                     # FastAPI backend
-│   ├── main.py
-│   ├── routes.py
-│   └── models.py
-|
-├── src/
-│   ├── detection/
-│   │   ├── detector.py      # YOLOv8 vehicle detection
-│   │   ├── helmet_detector.py
-│   │   └── plate_detector.py
-│   │
-│   ├── tracking/
-│   │   └── tracker.py       # Multi-object tracking
-│   │
-│   ├── violation/
-│   │   ├── red_light.py     # Red light violation detection
-│   │   └── speed_estimator.py
-│   │
-│   └── utils/
-│       ├── recorder.py      # Evidence recording
-│       ├── dashboard.py     # OpenCV visualization
-│       └── config.py        # Configuration utilities
-|
-├── frontend/                # React frontend
-│   └── src/
-│       └── pages/
-│           ├── Dashboard.jsx
-│           ├── Violations.jsx
-│           └── Cameras.jsx
-|
-├── data/
-│   └── raw/                 # Input video files
-|
-├── output/
-│   ├── screenshots/         # Violation evidence images
-│   └── reports/             # JSON violation reports
-|
-└── models/                  # Machine learning model weights
+## Using a different video
+
+1. Set `video.source` in [config.yaml](config.yaml) to your video path. Set `violation.speed_limit` in km/h and `violation.signal_interval` in seconds.
+2. Set the stop line for that view. Click its two endpoints, then click the side vehicles approach from. Press **Enter** to save `stop_line.json`.
+3. Calibrate speed for the same view. Mark the four corners of a road rectangle in the order shown, press **Enter**, then enter its real width and length in metres. The script saves `calibration.json`.
+
+Run these commands from the project folder, replacing the example path with yours:
+
+```powershell
+.\venv\Scripts\python.exe scripts/set_stop_line.py "data/raw/my-video.mp4"
+.\venv\Scripts\python.exe scripts/calibrate_speed.py "data/raw/my-video.mp4"
 ```
 
-## API Endpoints
+The included calibration files describe the sample view. A change in camera position or video framing requires new measurements. To enable helmet checks, provide a trained helmet model at `models/helmet.pt`. Without it, the detector continues with vehicle tracking, stop-line checks and calibrated speed estimation.
 
-| Method | Endpoint                         | Description                      |
-| ------ | -------------------------------- | -------------------------------- |
-| GET    | `/api/v1/violations`             | Retrieve all recorded violations |
-| GET    | `/api/v1/violations/{id}`        | Retrieve a violation by ID       |
-| GET    | `/api/v1/violations/type/{type}` | Filter violations by type        |
-| DELETE | `/api/v1/violations/{id}`        | Delete a recorded violation      |
-| GET    | `/api/v1/cameras`                | Retrieve registered cameras      |
-| POST   | `/api/v1/cameras`                | Register a new camera            |
-| GET    | `/api/v1/stats`                  | Retrieve dashboard statistics    |
-| GET    | `/api/v1/health`                 | Check backend health status      |
+## Project guide
 
-## Application Scope
+| Path | Purpose |
+| --- | --- |
+| [main.py](main.py) | Runs video processing and the OpenCV preview. |
+| [src/detection/](src/detection/) and [src/tracking/](src/tracking/) | Vehicle and helmet models, track matching and trajectories. |
+| [src/violation/](src/violation/) | Stop-line crossing checks and calibrated speed estimates. |
+| [src/ptz/](src/ptz/) | Calculates the pan and tilt values shown for a selected vehicle. |
+| [src/utils/](src/utils/) | Evidence recording, SQLite storage, configuration and video overlays. |
+| [api/](api/) | FastAPI routes and response models. |
+| [frontend/](frontend/) | React dashboard, violations table and camera registry. |
+| [scripts/](scripts/) | Tools for setting the stop line, calibrating speed and training a helmet model. |
+| `output/` | Generated `violations.db`, `screenshots/*.jpg` and `reports/*.json`. |
 
-The system focuses on traffic violations commonly observed in Bangalore, including:
+## API endpoints
 
-* Red light violations at signalized intersections.
-* Speeding on major roads and flyovers.
-* Helmet violations involving two-wheelers.
-* Wrong-way driving on one-way roads.
+All paths below use the prefix `/api/v1`. A **violation ID** identifies one saved event. A **vehicle ID** identifies a track and can recur when the detector restarts.
 
-## Key Capabilities
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Check API status. |
+| GET | `/stats` | Get total events and counts by type. |
+| GET | `/violations` | List recent records. Supports `limit`, `offset` and `violation_type`. |
+| GET | `/violations/id/{violation_id}` | Get one event by its database ID. |
+| GET | `/violations/{vehicle_id}` | Get the latest saved event for a vehicle ID. |
+| GET | `/violations/type/{violation_type}` | Filter by `red_light`, `speeding` or `no_helmet`. |
+| DELETE | `/violations/{violation_id}` | In the updated API, delete the single database record matching this ID. |
+| GET | `/cameras` | List registered cameras. |
+| GET | `/cameras/{camera_id}` | Get one camera entry. |
+| POST | `/cameras` | Add a camera entry. |
+| DELETE | `/cameras/{camera_id}` | Remove a camera entry. |
 
-* Real-time object detection and tracking.
-* Automated traffic violation identification.
-* Evidence generation through screenshots and structured reports.
-* Backend API integration for violation management.
-* Interactive dashboard for monitoring traffic events.
-* Modular architecture for extending detection capabilities.
+Before deleting a violation, check the parameter in [your running API docs](http://127.0.0.1:8000/docs). If the DELETE route shows `{vehicle_id}`, that version deletes **every record with that vehicle ID**. Screenshot and report files stay on disk.
+
+The camera registry is held in memory and resets when the API restarts. The detector reads its active video source from `config.yaml`.
 
 ## License
 
-This project is licensed under the MIT License.
-
----
-
-Developed by [Kishan Gurav](https://github.com/Kishangurav)
+MIT. Developed by [Kishan Gurav](https://github.com/Kishangurav).

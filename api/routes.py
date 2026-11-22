@@ -115,19 +115,22 @@ def get_violation_by_vehicle(vehicle_id: int):
         return _to_dict(row)
 
 
-@router.delete("/violations/{vehicle_id}")
-def delete_violation(vehicle_id: int):
-    """Deletes the database records for this vehicle (screenshots stay on disk)."""
+@router.delete("/violations/{violation_id}")
+def delete_violation(violation_id: int):
+    """Delete one violation using its unique database ID."""
     with db.Session() as session:
-        deleted = (
-            session.query(Violation)
-            .filter(Violation.vehicle_id == vehicle_id)
-            .delete()
-        )
+        row = session.get(Violation, violation_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Violation not found",
+            )
+
+        session.delete(row)
         session.commit()
-    if deleted == 0:
-        raise HTTPException(status_code=404, detail="Violation not found")
-    return {"message": f"{deleted} violation(s) for vehicle {vehicle_id} deleted"}
+
+    return {"message": f"Violation {violation_id} deleted"}
 
 
 # ----- Cameras -----
